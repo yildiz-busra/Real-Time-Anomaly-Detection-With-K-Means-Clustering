@@ -49,7 +49,6 @@ def extractPacketDetails(packet):
 
     return details
 
-
 def processPacket(packet):
     try:
         details = extractPacketDetails(packet)

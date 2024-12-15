@@ -9,7 +9,7 @@ def clean_log_line(line):
     # Remove 'time:' and 'summary:' fields
     line = re.sub(r"time: [^,]+, ", "", line)  # Remove 'time:' and its value
     line = re.sub(r"summary: [^,]+, ", "", line)  # Remove 'summary:' and its value
-    
+   
     # Replace '-' with ','
     line = line.replace(" - ", ", ")
     
