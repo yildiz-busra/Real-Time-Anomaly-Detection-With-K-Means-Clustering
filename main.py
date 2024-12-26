@@ -1,42 +1,66 @@
+import numpy as np
 import pandas as pd
+from sklearn.cluster import KMeans
 from sklearn.preprocessing import LabelEncoder, StandardScaler
-from sklearn.model_selection import train_test_split
-from sklearn.neural_network import MLPClassifier
+from sklearn.preprocessing import StandardScaler
+#from sklearn.metrics import pairwise_distances_argmin_min
+import matplotlib.pyplot as plt
+#import seaborn as sns
 from sklearn.metrics import classification_report, confusion_matrix
-from scipy.io import arff
-from sklearn.metrics import accuracy_score
-from xgboost import XGBRegressor
-from sklearn.feature_selection import RFE
 
-arffFile = arff.loadarff('KDDTrain+.arff')
-df = pd.DataFrame(arffFile[0])
+# veri setini yükle
+df = pd.read_csv("input.csv")
+#df.drop(columns=["attack_type"])
 
+# 2. veri önişleme
+# verisetinde boş değer olup olmadığını kontrol et
 #print(df.isnull().sum())
-#print(df.head())
+#tcp flag sütununda bulunan boş verileri yenii bir kategori ile doldur
+df["tcp_flags"] = df["tcp_flags"].fillna("NOFLAG")
+# sns.countplot(x='label', data=df)
+# plt.title('Distribution of TCP Flags')
+# plt.show()
 
+# 2.1 ketegorik verileri etiketle (label encoding)
 label_encoder = LabelEncoder()
-categorical_columns = df.select_dtypes(include=['object', 'category']).columns
-
-# Apply LabelEncoder to each categorical column
+categorical_columns = df.select_dtypes(include=["object", "category"]).columns
 for col in categorical_columns:
     df[col] = label_encoder.fit_transform(df[col])
 
-#print(df.head())
-X = df.drop(columns=['class'])
-y = df['class']
+# 2.2 normalizasyon
+numerical_columns = (
+    df.drop(columns=["label"])
+    .select_dtypes(include=["int64", "float64"])
+    .columns
+)
+scaler = StandardScaler()
+df[numerical_columns] = scaler.fit_transform(df[numerical_columns])
 
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.1, random_state=42)
+#print(df.tail())
 
-model = XGBRegressor(random_state=42)
+kmeans = KMeans(n_clusters=2, max_iter=500, random_state=42, algorithm="lloyd")  
+kmeans.fit(df)
 
-rfe = RFE(estimator=model, n_features_to_select=10, step=1)
-rfe.fit(X_train, y_train)
 
-print("Selected Features:", X.columns[rfe.support_])
-print("Feature Ranking:", rfe.ranking_)
+#df['cluster'] = kmeans.labels_
+distances = kmeans.transform(df)
+distances = np.linalg.norm(distances, axis=1)
+threshold = np.percentile(distances, 90)
+df['cluster'] = kmeans.predict(df)
+df['anomaly'] = distances > threshold
+print(df.tail())
+# print(df.tail())
+#true_labels = df['label']
+#predicted_labels = df['anomaly'].astype(int)
+print("Confusion Matrix:")
+print(confusion_matrix(df['label'], df['cluster']))
 
-# # # Test performance
-# y_pred = rfe.predict(X_test)
-# print("Accuracy:", accuracy_score(y_test, y_pred))
+print("\nClassification Report:")
+print(classification_report(df['label'], df['cluster'], target_names=['Normal', 'Anormal']))
 
-# print(df.info())
+plt.scatter(df.index, distances, c=df['cluster'], cmap='coolwarm', alpha=0.7)
+plt.axhline(threshold, color='red', linestyle='--')
+plt.title('Anomaly Detection in Network Traffic')
+plt.xlabel('Data Points')
+plt.ylabel('Distance from Cluster Center')
+plt.show()
