@@ -38,7 +38,7 @@ df[numerical_columns] = scaler.fit_transform(df[numerical_columns])
 
 #print(df.tail())
 
-kmeans = KMeans(n_clusters=2, max_iter=500, random_state=42, algorithm="lloyd")  
+kmeans = KMeans(n_clusters=2, max_iter=1000, random_state=42)  
 kmeans.fit(df)
 
 
@@ -48,7 +48,7 @@ distances = np.linalg.norm(distances, axis=1)
 threshold = np.percentile(distances, 90)
 df['cluster'] = kmeans.predict(df)
 df['anomaly'] = distances > threshold
-print(df.tail())
+#print(df.iloc[37500:37550])
 # print(df.tail())
 #true_labels = df['label']
 #predicted_labels = df['anomaly'].astype(int)
