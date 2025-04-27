@@ -1,66 +1,87 @@
+from data_processor import DataProcessor
+from anomaly_detector import AnomalyDetector
+from visualizer import Visualizer
 import numpy as np
-import pandas as pd
-from sklearn.cluster import KMeans
-from sklearn.preprocessing import LabelEncoder, StandardScaler
-from sklearn.preprocessing import StandardScaler
-#from sklearn.metrics import pairwise_distances_argmin_min
+from sklearn.metrics import roc_auc_score, precision_recall_curve, average_precision_score
 import matplotlib.pyplot as plt
-#import seaborn as sns
-from sklearn.metrics import classification_report, confusion_matrix
 
-# veri setini yükle
-df = pd.read_csv("input.csv")
-#df.drop(columns=["attack_type"])
+def evaluate_model(X, y_true, y_pred, clusters, detector):
+    """Evaluate model performance with multiple metrics"""
+    # Calculate ROC AUC using cluster probabilities
+    cluster_probs = np.zeros((len(X), 2))
+    for i in range(len(X)):
+        cluster_probs[i, clusters[i]] = 1
+    roc_auc = roc_auc_score(y_true, cluster_probs[:, 1])
+    print(f"\nROC AUC Score: {roc_auc:.4f}")
+    
+    # Calculate Average Precision
+    ap_score = average_precision_score(y_true, cluster_probs[:, 1])
+    print(f"Average Precision Score: {ap_score:.4f}")
+    
+    # Plot cluster distribution by class
+    plt.figure(figsize=(10, 6))
+    for cluster in range(2):
+        mask = (clusters == cluster)
+        plt.hist(y_true[mask], bins=[-0.5, 0.5, 1.5], alpha=0.7, 
+                label=f'Cluster {cluster} ({"Normal" if cluster == detector.normal_cluster else "Anomaly"})')
+    plt.xlabel('Class (0: Normal, 1: Anomaly)')
+    plt.ylabel('Count')
+    plt.title('Cluster Distribution by Class')
+    plt.legend()
+    plt.show()
 
-# 2. veri önişleme
-# verisetinde boş değer olup olmadığını kontrol et
-#print(df.isnull().sum())
-#tcp flag sütununda bulunan boş verileri yenii bir kategori ile doldur
-df["tcp_flags"] = df["tcp_flags"].fillna("NOFLAG")
-# sns.countplot(x='label', data=df)
-# plt.title('Distribution of TCP Flags')
-# plt.show()
+def main():
+    # Initialize components
+    data_processor = DataProcessor()
+    anomaly_detector = AnomalyDetector(
+        n_clusters=2,  # Two clusters: normal and anomaly
+        n_features=15,  # Select top 15 features
+        use_pca=True  # Use PCA for dimensionality reduction
+    )
+    visualizer = Visualizer()
+    
+    # Load and preprocess training data
+    print("Loading and preprocessing training data...")
+    train_df = data_processor.load_arff_data("Data/KDDTrain+.arff")
+    train_df = data_processor.preprocess_data(train_df)
+    
+    # Separate features and labels
+    X_train = train_df.drop(columns=['attack_type', 'difficulty']).values
+    y_train = (train_df['attack_type'] != 'normal').astype(int).values
+    
+    # Train the anomaly detector
+    print("Training the anomaly detector...")
+    anomaly_detector.fit(X_train, y_train)
+    
+    # Plot feature importance
+    feature_scores = anomaly_detector.get_feature_scores()
+    if feature_scores is not None:
+        feature_names = [f'Feature {i}' for i in range(len(feature_scores))]
+        visualizer.plot_feature_importance(feature_scores, feature_names)
+    
+    # Load and preprocess test data
+    print("Loading and preprocessing test data...")
+    test_df = data_processor.load_arff_data("Data/KDDTest+.arff")
+    test_df = data_processor.preprocess_data(test_df)
+    
+    # Separate features and labels
+    X_test = test_df.drop(columns=['attack_type', 'difficulty']).values
+    y_test = (test_df['attack_type'] != 'normal').astype(int).values
+    
+    # Get predictions and clusters
+    y_pred = anomaly_detector.predict(X_test)
+    clusters = anomaly_detector.get_clusters(X_test)
+    
+    # Evaluate the model
+    print("Evaluating the model...")
+    anomaly_detector.evaluate(X_test, y_test)
+    
+    # Additional evaluation
+    evaluate_model(X_test, y_test, y_pred, clusters, anomaly_detector)
+    
+    # Visualize results
+    print("Visualizing results...")
+    visualizer.plot_cluster_distribution(clusters)
 
-# 2.1 ketegorik verileri etiketle (label encoding)
-label_encoder = LabelEncoder()
-categorical_columns = df.select_dtypes(include=["object", "category"]).columns
-for col in categorical_columns:
-    df[col] = label_encoder.fit_transform(df[col])
-
-# 2.2 normalizasyon
-numerical_columns = (
-    df.drop(columns=["label"])
-    .select_dtypes(include=["int64", "float64"])
-    .columns
-)
-scaler = StandardScaler()
-df[numerical_columns] = scaler.fit_transform(df[numerical_columns])
-
-#print(df.tail())
-
-kmeans = KMeans(n_clusters=2, max_iter=1000, random_state=42)  
-kmeans.fit(df)
-
-
-#df['cluster'] = kmeans.labels_
-distances = kmeans.transform(df)
-distances = np.linalg.norm(distances, axis=1)
-threshold = np.percentile(distances, 90)
-df['cluster'] = kmeans.predict(df)
-df['anomaly'] = distances > threshold
-#print(df.iloc[37500:37550])
-# print(df.tail())
-#true_labels = df['label']
-#predicted_labels = df['anomaly'].astype(int)
-print("Confusion Matrix:")
-print(confusion_matrix(df['label'], df['cluster']))
-
-print("\nClassification Report:")
-print(classification_report(df['label'], df['cluster'], target_names=['Normal', 'Anormal']))
-
-plt.scatter(df.index, distances, c=df['cluster'], cmap='coolwarm', alpha=0.7)
-plt.axhline(threshold, color='red', linestyle='--')
-plt.title('Anomaly Detection in Network Traffic')
-plt.xlabel('Data Points')
-plt.ylabel('Distance from Cluster Center')
-plt.show()
+if __name__ == "__main__":
+    main()
