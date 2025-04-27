@@ -44,7 +44,7 @@ def main():
     print("Loading and preprocessing training data...")
     train_df = data_processor.load_arff_data("Data/KDDTrain+.arff")
     train_df = data_processor.preprocess_data(train_df)
-    
+
     # Separate features and labels
     X_train = train_df.drop(columns=['attack_type', 'difficulty']).values
     y_train = (train_df['attack_type'] != 'normal').astype(int).values

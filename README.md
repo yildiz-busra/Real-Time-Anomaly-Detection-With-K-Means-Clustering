@@ -1,10 +1,11 @@
-# Real-Time Network Anomaly Detection using K-Means Clustering
+# Network Anomaly Detection using K-Means Clustering
 
 This project implements a real-time network anomaly detection system using K-Means clustering on the NSL-KDD dataset. The system can classify network traffic as either normal or anomalous based on clustering patterns.
 
+At the moment of writing this file, the model classifies the NSL-KDD test samples with 74% accuracy, is effective at identifying normal traffic but weak when it comes to catching anomalous patterns.
+
 ## Features
 
-- Real-time network traffic analysis
 - Anomaly detection using K-Means clustering
 - Feature selection and dimensionality reduction
 - Performance evaluation and visualization
